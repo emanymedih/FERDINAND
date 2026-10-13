@@ -78,6 +78,13 @@ class SberParseTest(unittest.TestCase):
         self.assertTrue(any("Остатки" in p for p in problems))
         self.assertTrue(any("Списания" in p or "Расходы" in p for p in problems))
 
+    def test_deposit_transfer_is_own(self):
+        from phil.sber_pdf import classify_sber
+        self.assertEqual(classify_sber("Перевод с карты", "KARTA-VKLAD. Операция по счету ****0002", -100).kind,
+                         "savings_out")
+        self.assertEqual(classify_sber("Перевод на карту", "SBOL. Операция по счету ****0002", 100).kind,
+                         "transfer_in_other")
+
     def test_wrong_document(self):
         with self.assertRaises(StatementParseError):
             parse_sber([w(45, 68, "Что-то другое")])

@@ -51,6 +51,9 @@ def classify_sber(category: str, description: str, amount_minor: int) -> Kind:
         if c.startswith("Выдача наличных"):
             return Kind("cash_out", merchant, None)
         return Kind("card_payment", merchant, None)
+    if re.match(r"^(KARTA-VKLAD|VKLAD-KARTA)\b", d) or re.search(r"\b[Вв]клад", d.split(".")[0]):
+        # Перевод между картой и вкладом в Сбере — свои деньги.
+        return Kind("savings_out" if amount_minor < 0 else "savings_in", d.split(".")[0], None)
     if c.startswith("Внесение наличных"):
         return Kind("cash_in", None, None)
     if c.startswith("Выдача наличных"):
