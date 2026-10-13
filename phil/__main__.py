@@ -1,6 +1,6 @@
 """Командная строка Фила.
 
-    python -m phil import data/выписка.pdf [data/сбер.pdf ...]   # Т-Банк или Сбер, определяется сам
+    python -m phil import data/выписка.pdf [data/сбер.pdf ...]   # Т-Банк, Сбер или Озон Банк, определяется сам
     python -m phil transfers                                     # найденные переводы между своими счетами
     python -m phil summary [--from 2026-01-01] [--to 2026-01-31] [--out data/сводка.md]
     python -m phil counterparties [--all] [--top 30]
@@ -19,7 +19,7 @@ from .labels import LABELS, counterparties, set_label
 from .registry import ImportRejected, connect, import_statement
 from .summary import build_summary
 from .kinds import KIND_TITLES
-from . import sber_pdf, tbank_pdf
+from . import ozon_pdf, sber_pdf, tbank_pdf
 from .tbank_pdf import StatementParseError, fmt_minor
 from .transfers import list_links, match_transfers
 
@@ -34,9 +34,11 @@ def parse_any(path: Path):
         head = pdf.pages[0].extract_text() or "" if pdf.pages else ""
     if "Выписка по платёжному счёту" in head or "Выписка по платежному счету" in head:
         return sber_pdf.parse_pdf(path)
+    if "ОЗОН Банк" in head and "Справка о движении средств" in head:
+        return ozon_pdf.parse_pdf(path)
     if "Справка о движении средств" in head:
         return tbank_pdf.parse_pdf(path)
-    raise StatementParseError("Формат не распознан: поддерживаются справка Т-Банка и выписка Сбера")
+    raise StatementParseError("Формат не распознан: поддерживаются Т-Банк, Сбер и Озон Банк")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -44,7 +46,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--db", type=Path, default=DEFAULT_DB, help="файл реестра")
     sub = p.add_subparsers(dest="cmd", required=True)
 
-    imp = sub.add_parser("import", help="загрузить выписку: справку Т-Банка или выписку Сбера (PDF)")
+    imp = sub.add_parser("import", help="загрузить выписку Т-Банка, Сбера или Озон Банка (PDF)")
     imp.add_argument("files", nargs="+", type=Path)
 
     summ = sub.add_parser("summary", help="сводка за период")

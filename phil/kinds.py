@@ -53,6 +53,7 @@ KIND_TITLES = {
     "cashback": "Кэшбэк",
     "refund": "Возвраты покупок",
     "salary": "Зарплата",
+    "interest": "Проценты на остаток",
     "transfer_out_sbp": "Переводы по СБП",
     "transfer_in_sbp": "Входящие переводы по СБП",
     "transfer_in_other": "Входящие переводы",
