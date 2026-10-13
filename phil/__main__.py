@@ -6,6 +6,9 @@
     python -m phil counterparties [--all] [--top 30]
     python -m phil label 1234 own [--note "накопительный счёт"]
     python -m phil label-kind cash_in own [--note "свои отложенные деньги"]
+    python -m phil questions [--from 2026-10-01]          # что уточнить у владельца
+    python -m phil backup                                 # архив реестра и выписок для переноса
+    python -m phil restore data/phil-backup.zip           # восстановить из архива
 
 Реестр по умолчанию лежит в data/phil.sqlite; папка data/ исключена из Git.
 """
@@ -22,6 +25,7 @@ from .summary import build_summary
 from .kinds import KIND_TITLES
 from . import ozon_pdf, sber_pdf, tbank_pdf
 from .tbank_pdf import StatementParseError, fmt_minor
+from .questions import build_questions, format_questions
 from .transfers import list_links, match_transfers
 
 DEFAULT_DB = Path("data/phil.sqlite")
@@ -40,6 +44,43 @@ def parse_any(path: Path):
     if "Справка о движении средств" in head:
         return tbank_pdf.parse_pdf(path)
     raise StatementParseError("Формат не распознан: поддерживаются Т-Банк, Сбер и Озон Банк")
+
+
+def backup(db: Path) -> Path:
+    """Архив с реестром и всеми PDF из папки реестра. Хранится только в data/."""
+    import zipfile
+    from datetime import date
+
+    folder = db.parent
+    target = folder / f"phil-backup-{date.today().isoformat()}.zip"
+    with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as z:
+        z.write(db, db.name)
+        for pdf in sorted(folder.glob("*.pdf")):
+            z.write(pdf, pdf.name)
+    return target
+
+
+def restore(archive: Path, db: Path) -> int:
+    """Распаковывает архив в папку реестра; существующий реестр не перезаписывается."""
+    import zipfile
+
+    folder = db.parent
+    folder.mkdir(parents=True, exist_ok=True)
+    if db.exists():
+        print(f"{db} уже существует: удалите или переименуйте его перед восстановлением", file=sys.stderr)
+        return 1
+    with zipfile.ZipFile(archive) as z:
+        names = z.namelist()
+        for name in names:
+            if "/" in name or "\\" in name or name.startswith(".") or not (name.endswith(".pdf") or name == db.name):
+                print(f"Пропущен посторонний файл в архиве: {name}", file=sys.stderr)
+                continue
+            target = folder / name
+            if target.exists():
+                continue
+            target.write_bytes(z.read(name))
+    print(f"Восстановлено в {folder}: {', '.join(n for n in names if n.endswith('.pdf') or n == db.name)}")
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -70,9 +111,20 @@ def main(argv: list[str] | None = None) -> int:
     labk.add_argument("label", choices=sorted(LABELS))
     labk.add_argument("--note")
 
+    q = sub.add_parser("questions", help="вопросы по неуточнённым операциям, самые важные сверху")
+    q.add_argument("--from", dest="date_from")
+    q.add_argument("--to", dest="date_to")
+    q.add_argument("--limit", type=int, default=7)
+
+    sub.add_parser("backup", help="сохранить реестр и выписки в один архив в data/")
+    rst = sub.add_parser("restore", help="восстановить реестр и выписки из архива")
+    rst.add_argument("archive", type=Path)
+
     sub.add_parser("transfers", help="переводы между своими счетами, найденные по сумме и времени")
 
     args = p.parse_args(argv)
+    if args.cmd == "restore":
+        return restore(args.archive, args.db)
     conn = connect(args.db)
 
     if args.cmd == "import":
@@ -138,6 +190,15 @@ def main(argv: list[str] | None = None) -> int:
             print(e, file=sys.stderr)
             return 1
         print(f"{KIND_TITLES[args.kind]}: {LABELS[args.label]}")
+        return 0
+
+    if args.cmd == "questions":
+        print(format_questions(build_questions(conn, args.date_from, args.date_to, args.limit)))
+        return 0
+
+    if args.cmd == "backup":
+        conn.close()
+        print(f"Архив: {backup(args.db)}")
         return 0
 
     if args.cmd == "summary":
