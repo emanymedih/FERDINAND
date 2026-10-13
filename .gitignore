@@ -7,6 +7,10 @@ __pycache__/
 secrets/
 private-data/
 runtime-data/
+# Реальные выписки и личные финансовые данные Фила
+data/
+*.ofx
+*.qif
 *.sqlite
 *.sqlite3
 *.db
