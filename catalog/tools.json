@@ -23,13 +23,15 @@
     },
     {
       "id": "rockefeller",
-      "name": "Рокфеллер",
+      "name": "Фил",
       "role": "Личный финансовый помощник",
       "source_pages": [
         5,
         8
       ],
-      "scope": "Выписки, расходы, доходы проектов, кредитные обязательства и сценарии."
+      "scope": "Выписки, расходы, доходы проектов, кредитные обязательства и сценарии.",
+      "original_name": "Рокфеллер",
+      "selection_status": "selected_first"
     },
     {
       "id": "kzg",
@@ -237,11 +239,13 @@
       "controls": "Доступ к банку только для чтения; неподтверждённая категория имеет отдельный статус.",
       "acceptance_criteria": "Суммы и количество операций сходятся с выпиской; повторный импорт не увеличивает итог.",
       "dependencies": [
-        "CORE-03",
-        "CORE-05"
+        "CORE-03"
       ],
-      "suggested_priority": "early",
-      "unknowns": "Конкретные интеграции и исходный код автора отсутствуют."
+      "suggested_priority": "first",
+      "unknowns": "Конкретные интеграции и исходный код автора отсутствуют.",
+      "optional_dependencies": [
+        "CORE-05"
+      ]
     },
     {
       "id": "FIN-02",
@@ -1318,5 +1322,12 @@
       "suggested_priority": "later",
       "unknowns": "Обозначено словом «дальше»; работающее управление заводом в презентации не заявлено."
     }
-  ]
+  ],
+  "active_focus": {
+    "system_id": "rockefeller",
+    "display_name": "Фил",
+    "stage": "mechanics_design",
+    "accounting_scope": "to_be_selected",
+    "first_tool_proposal": "FIN-01"
+  }
 }
