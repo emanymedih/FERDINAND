@@ -21,7 +21,7 @@ RULES: list[tuple[str, re.Pattern]] = [
     ("transfer_in_internal", re.compile(r"^(?:Внутрибанковский перевод|Перевод) с договора\s*(?P<ref>\d+)?")),
     ("transfer_out_phone", re.compile(r"^Внешний перевод по номеру телефона (?P<ref>\+?\d+)")),
     ("transfer_out_bank", re.compile(r"^Внешний банковский перевод сч[её]т (?P<ref>\d{20}),?\s*(?P<cp>.*)$")),
-    ("transfer_out_card", re.compile(r"^Перевод на карту\s*(?P<ref>.*)$")),
+    ("transfer_out_card", re.compile(r"^Перевод на карту(?: другого банка)?\s*(?P<ref>.*)$")),
     ("transfer_self", re.compile(r"^Перевод себе")),
     ("topup", re.compile(r"^Пополнение\. (?P<cp>.+)$")),
     ("bank_transfer_in", re.compile(r"^Банковский перевод\. (?P<cp>.+)$")),

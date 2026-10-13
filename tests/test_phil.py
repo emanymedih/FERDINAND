@@ -7,6 +7,7 @@ import sqlite3
 import unittest
 
 from phil.kinds import classify
+from phil.labels import counterparties, set_label
 from phil.registry import ImportRejected, connect, import_statement
 from phil.summary import build_summary
 from phil.tbank_pdf import StatementParseError, Word, parse_money, parse_pages
@@ -150,6 +151,7 @@ class KindTest(unittest.TestCase):
             "Внутрибанковский перевод с договора Т-Банк": ("transfer_in_internal", None, None),
             "Внутренний перевод на вклад 3000000000": ("savings_out", None, "3000000000"),
             "Плата за оповещения об операциях": ("bank_fee", "оповещения об операциях", None),
+            "Перевод на карту другого банка": ("transfer_out_card", None, None),
             "Что-то новое": ("unknown", None, None),
         }
         for desc, (kind, cp, ref) in cases.items():
@@ -192,10 +194,53 @@ class RegistryTest(unittest.TestCase):
     def test_summary_numbers(self):
         import_statement(self.conn, parse(), "jan.pdf")
         text = build_summary(self.conn)
-        self.assertIn("**Поступило:** 50 000,00 ₽", text)
-        self.assertIn("**Списано:** 17 600,00 ₽", text)
-        self.assertIn("**Разница:** 32 400,00 ₽", text)
+        self.assertIn("| **Всего по счёту** | 50 000,00 ₽ | 17 600,00 ₽ | 5 |", text)
+        self.assertIn("| Внешние: доходы и расходы | 0,00 ₽ | 2 600,00 ₽ | 3 |", text)
+        self.assertIn("| Не уточнено | 50 000,00 ₽ | 15 000,00 ₽ | 2 |", text)
         self.assertIn("| SHOP Moscow RUS | 2 501,00 ₽ | 2 |", text)
+
+
+class LabelTest(unittest.TestCase):
+    OPS = [
+        dict(date="20.01.2026", time="12:00", amount="+10 000.00 ₽", desc_lines=["Перевод с договора", "5000000002"]),
+        dict(date="19.01.2026", time="12:00", amount="-30 000.00 ₽", desc_lines=["Внутренний перевод на", "договор 5000000002"]),
+        dict(date="18.01.2026", time="12:00", amount="-5 000.00 ₽", desc_lines=["Внешний перевод по", "номеру телефона", "+79000000001"]),
+        dict(date="17.01.2026", time="12:00", amount="-2 000.00 ₽", desc_lines=["Оплата в SHOP"]),
+        dict(date="16.01.2026", time="12:00", amount="-1 000.00 ₽", desc_lines=["Пополнение Инвесткопилки"]),
+    ]
+
+    def setUp(self):
+        self.conn = connect(":memory:")
+        import_statement(self.conn, parse(self.OPS, total_in="10 000,00 ₽", total_out="38 000,00 ₽"), "jan.pdf")
+
+    def test_unlabeled_transfers_are_unclear(self):
+        text = build_summary(self.conn)
+        self.assertIn("| Внешние: доходы и расходы | 0,00 ₽ | 2 000,00 ₽ | 1 |", text)
+        self.assertIn("| Между своими счетами | 0,00 ₽ | 1 000,00 ₽ | 1 |", text)
+        self.assertIn("| Не уточнено | 10 000,00 ₽ | 35 000,00 ₽ | 3 |", text)
+
+    def test_own_and_external_labels_move_flows(self):
+        self.assertEqual(set_label(self.conn, "0002", "own"), "5000000002")
+        set_label(self.conn, "+79000000001", "external", "аренда")
+        text = build_summary(self.conn)
+        self.assertIn("| Внешние: доходы и расходы | 0,00 ₽ | 7 000,00 ₽ | 2 |", text)
+        self.assertIn("| Между своими счетами | 10 000,00 ₽ | 31 000,00 ₽ | 3 |", text)
+        self.assertIn("| Не уточнено | 0,00 ₽ | 0,00 ₽ | 0 |", text)
+
+    def test_relabel_keeps_history(self):
+        set_label(self.conn, "5000000002", "own")
+        set_label(self.conn, "5000000002", "external")
+        hist = self.conn.execute("SELECT label FROM counterparty_label_history").fetchall()
+        self.assertEqual([h[0] for h in hist], ["own"])
+
+    def test_counterparties_list(self):
+        cps = {c["ref"]: c for c in counterparties(self.conn)}
+        self.assertTrue(cps["5000000002"]["both_ways"])
+        self.assertEqual(cps["5000000002"]["out_minor"], 3000000)
+
+    def test_unknown_ref_rejected(self):
+        with self.assertRaises(ValueError):
+            set_label(self.conn, "9999", "own")
 
 
 if __name__ == "__main__":
