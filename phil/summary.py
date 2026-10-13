@@ -10,7 +10,7 @@ import sqlite3
 from collections import defaultdict
 
 from .kinds import KIND_TITLES
-from .labels import flow_of, label_map
+from .labels import flow_of, label_map, note_map
 from .transfers import linked_ids
 from .tbank_pdf import fmt_minor
 
@@ -43,6 +43,8 @@ def build_summary(conn: sqlite3.Connection, date_from: str | None = None, date_t
         return "В реестре нет операций за выбранный период."
 
     labels = label_map(conn)
+    notes = note_map(conn)
+    named: dict[str, list[int]] = defaultdict(lambda: [0, 0])
     linked = linked_ids(conn)
     per_account: dict[str, list[int]] = defaultdict(lambda: [0, 0, 0])
     ext_in: dict[str, list[int]] = defaultdict(lambda: [0, 0])
@@ -67,6 +69,10 @@ def build_summary(conn: sqlite3.Connection, date_from: str | None = None, date_t
             bucket = unclear_in if amount > 0 else unclear_out
         bucket[r["kind"]][0] += amount
         bucket[r["kind"]][1] += 1
+        note = notes.get((r["account"], r["counterparty_ref"])) if r["counterparty_ref"] else None
+        if flow == "external" and note:
+            named[note][0] += amount
+            named[note][1] += 1
         if r["kind"] == "card_payment" and amount < 0:
             merchants[r["counterparty"] or "?"][0] += amount
             merchants[r["counterparty"] or "?"][1] += 1
@@ -118,6 +124,11 @@ def build_summary(conn: sqlite3.Connection, date_from: str | None = None, date_t
     ]
     out += _kind_table("Внешние поступления", ext_in, 1)
     out += _kind_table("Внешние списания", ext_out, -1)
+    if named:
+        out += ["", "## Внешние операции по отмеченным получателям", "",
+                "| Получатель | Сумма | Операций |", "| --- | ---: | ---: |"]
+        for note, (amount, n) in sorted(named.items(), key=lambda kv: kv[1][0]):
+            out.append(f"| {note} | {fmt_minor(amount)} | {n} |")
     out += _kind_table("Неуточнённые поступления", unclear_in, 1)
     out += _kind_table("Неуточнённые списания", unclear_out, -1)
     out += ["", f"## Крупнейшие продавцы по покупкам (топ-{top})", "",

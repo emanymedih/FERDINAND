@@ -27,6 +27,12 @@ CREATE TABLE IF NOT EXISTS counterparty_labels (
     set_at  TEXT NOT NULL,
     PRIMARY KEY (account, ref)
 );
+CREATE TABLE IF NOT EXISTS kind_labels (
+    kind   TEXT PRIMARY KEY,
+    label  TEXT NOT NULL CHECK (label IN ('own', 'external')),
+    note   TEXT,
+    set_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS counterparty_label_history (
     id      INTEGER PRIMARY KEY,
     account TEXT NOT NULL,
@@ -78,9 +84,36 @@ def set_label(conn: sqlite3.Connection, ref: str, label: str, note: str | None =
     return full_ref
 
 
-def label_map(conn: sqlite3.Connection) -> dict[tuple[str, str], str]:
+def set_kind_label(conn: sqlite3.Connection, kind: str, label: str, note: str | None = None) -> None:
+    """Отметка для всех операций одного типа без реквизита, например внесения наличных."""
+    from .kinds import KIND_TITLES
+
+    if label not in LABELS:
+        raise ValueError(f"Отметка должна быть одной из: {', '.join(LABELS)}")
+    if kind not in KIND_TITLES:
+        raise ValueError(f"Неизвестный тип операции: {kind}")
     ensure_schema(conn)
-    return {(a, r): l for a, r, l in conn.execute("SELECT account, ref, label FROM counterparty_labels")}
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    with conn:
+        conn.execute(
+            "INSERT INTO counterparty_label_history (account, ref, label, note, set_at) "
+            "SELECT '*', 'kind:' || kind, label, note, set_at FROM kind_labels WHERE kind = ?", (kind,))
+        conn.execute("INSERT OR REPLACE INTO kind_labels (kind, label, note, set_at) VALUES (?, ?, ?, ?)",
+                     (kind, label, note, now))
+
+
+def label_map(conn: sqlite3.Connection) -> dict[tuple[str, str], str]:
+    """Отметки реквизитов {(счёт, реквизит): отметка} и типов {('*', 'kind:тип'): отметка}."""
+    ensure_schema(conn)
+    result = {(a, r): l for a, r, l in conn.execute("SELECT account, ref, label FROM counterparty_labels")}
+    result.update({("*", f"kind:{k}"): l for k, l in conn.execute("SELECT kind, label FROM kind_labels")})
+    return result
+
+
+def note_map(conn: sqlite3.Connection) -> dict[tuple[str, str], str]:
+    ensure_schema(conn)
+    return {(a, r): n for a, r, n in conn.execute(
+        "SELECT account, ref, note FROM counterparty_labels WHERE note IS NOT NULL AND note <> ''")}
 
 
 def flow_of(row: sqlite3.Row, labels: dict[tuple[str, str], str],
@@ -96,6 +129,9 @@ def flow_of(row: sqlite3.Row, labels: dict[tuple[str, str], str],
         label = labels.get((row["account"], ref))
         if label:
             return label
+    kind_label = labels.get(("*", f"kind:{row['kind']}"))
+    if kind_label:
+        return kind_label
     if row["kind"] in NEEDS_MEANING or row["kind"] == "unknown":
         return "unclear"
     return "external"

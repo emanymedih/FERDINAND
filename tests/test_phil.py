@@ -229,6 +229,16 @@ class LabelTest(unittest.TestCase):
         self.assertIn("| Между своими счетами | 10 000,00 ₽ | 31 000,00 ₽ | 3 |", text)
         self.assertIn("| Не уточнено | 0,00 ₽ | 0,00 ₽ | 0 |", text)
 
+    def test_kind_label_and_notes(self):
+        from phil.labels import set_kind_label
+        set_label(self.conn, "+79000000001", "external", "Аренда")
+        set_kind_label(self.conn, "transfer_in_internal", "own", "свои деньги")
+        text = build_summary(self.conn)
+        self.assertIn("| Аренда | -5 000,00 ₽ | 1 |", text)
+        self.assertIn("| Между своими счетами | 10 000,00 ₽ | 1 000,00 ₽ | 2 |", text)
+        with self.assertRaises(ValueError):
+            set_kind_label(self.conn, "no_such_kind", "own")
+
     def test_relabel_keeps_history(self):
         set_label(self.conn, "5000000002", "own")
         set_label(self.conn, "5000000002", "external")

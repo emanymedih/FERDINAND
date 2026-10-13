@@ -5,6 +5,7 @@
     python -m phil summary [--from 2026-01-01] [--to 2026-01-31] [--out data/сводка.md]
     python -m phil counterparties [--all] [--top 30]
     python -m phil label 4373 own [--note "накопительный счёт"]
+    python -m phil label-kind cash_in own [--note "свои отложенные деньги"]
 
 Реестр по умолчанию лежит в data/phil.sqlite; папка data/ исключена из Git.
 """
@@ -15,7 +16,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from .labels import LABELS, counterparties, set_label
+from .labels import LABELS, counterparties, set_kind_label, set_label
 from .registry import ImportRejected, connect, import_statement
 from .summary import build_summary
 from .kinds import KIND_TITLES
@@ -63,6 +64,11 @@ def main(argv: list[str] | None = None) -> int:
     lab.add_argument("ref", help="договор, телефон или счёт; можно последние цифры")
     lab.add_argument("label", choices=sorted(LABELS))
     lab.add_argument("--note")
+
+    labk = sub.add_parser("label-kind", help="отметить все операции одного типа, например cash_in")
+    labk.add_argument("kind")
+    labk.add_argument("label", choices=sorted(LABELS))
+    labk.add_argument("--note")
 
     sub.add_parser("transfers", help="переводы между своими счетами, найденные по сумме и времени")
 
@@ -123,6 +129,15 @@ def main(argv: list[str] | None = None) -> int:
             print(e, file=sys.stderr)
             return 1
         print(f"{ref}: {LABELS[args.label]}")
+        return 0
+
+    if args.cmd == "label-kind":
+        try:
+            set_kind_label(conn, args.kind, args.label, args.note)
+        except ValueError as e:
+            print(e, file=sys.stderr)
+            return 1
+        print(f"{KIND_TITLES[args.kind]}: {LABELS[args.label]}")
         return 0
 
     if args.cmd == "summary":
