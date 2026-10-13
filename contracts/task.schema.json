@@ -1,0 +1,166 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "FERDINAND Task",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "task_id",
+    "tool_id",
+    "requested_by",
+    "requested_at",
+    "mode",
+    "status",
+    "idempotency_key",
+    "inputs"
+  ],
+  "properties": {
+    "task_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "tool_id": {
+      "type": "string",
+      "enum": [
+        "FRI-01",
+        "FRI-02",
+        "FRI-03",
+        "FRI-04",
+        "FRI-05",
+        "FIN-01",
+        "FIN-02",
+        "FIN-03",
+        "FIN-04",
+        "BIZ-01",
+        "BIZ-02",
+        "BIZ-03",
+        "BIZ-04",
+        "BIZ-05",
+        "BIZ-06",
+        "BIZ-07",
+        "BIZ-08",
+        "BIZ-09",
+        "BIZ-10",
+        "BIZ-11",
+        "BIZ-12",
+        "BIZ-13",
+        "BIZ-14",
+        "BIZ-15",
+        "BIZ-16",
+        "AUTO-01",
+        "CORE-01",
+        "CORE-02",
+        "CORE-03",
+        "CORE-04",
+        "CORE-05",
+        "CORE-06",
+        "UI-01",
+        "UI-02",
+        "UI-03",
+        "UI-04",
+        "UI-05",
+        "UI-06",
+        "UI-07",
+        "UI-08",
+        "UI-09",
+        "UI-10",
+        "UI-11",
+        "FUT-01"
+      ]
+    },
+    "requested_by": {
+      "type": "string",
+      "minLength": 1
+    },
+    "requested_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "mode": {
+      "enum": [
+        "observe",
+        "draft",
+        "approved_action"
+      ]
+    },
+    "status": {
+      "enum": [
+        "queued",
+        "running",
+        "needs_review",
+        "awaiting_approval",
+        "completed",
+        "failed",
+        "cancelled"
+      ]
+    },
+    "idempotency_key": {
+      "type": "string",
+      "minLength": 1
+    },
+    "inputs": {
+      "type": "object"
+    },
+    "approval_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "source_refs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "source_id",
+          "object_id",
+          "locator",
+          "retrieved_at"
+        ],
+        "properties": {
+          "source_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "object_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "locator": {
+            "type": "string",
+            "minLength": 1
+          },
+          "retrieved_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "mode": {
+            "const": "approved_action"
+          }
+        },
+        "required": [
+          "mode"
+        ]
+      },
+      "then": {
+        "required": [
+          "approval_id"
+        ],
+        "properties": {
+          "approval_id": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  ]
+}

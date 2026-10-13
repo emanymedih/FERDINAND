@@ -1,0 +1,21 @@
+{
+  "task_id": "demo-task-001",
+  "tool_id": "BIZ-01",
+  "requested_by": "demo-user",
+  "requested_at": "2026-10-13T17:00:00Z",
+  "mode": "observe",
+  "status": "queued",
+  "idempotency_key": "synthetic-mail:demo-001",
+  "inputs": {
+    "source": "synthetic-mail",
+    "period": "demo"
+  },
+  "source_refs": [
+    {
+      "source_id": "synthetic-mail",
+      "object_id": "demo-001",
+      "locator": "synthetic://demo-001/body",
+      "retrieved_at": "2026-10-13T17:00:00Z"
+    }
+  ]
+}

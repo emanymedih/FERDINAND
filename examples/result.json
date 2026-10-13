@@ -1,0 +1,24 @@
+{
+  "task_id": "demo-task-001",
+  "status": "needs_review",
+  "summary": "Демонстрационный кандидат заявки требует уточнения контакта и срока.",
+  "data": {
+    "lead_id": "demo-lead-001"
+  },
+  "source_refs": [
+    {
+      "source_id": "synthetic-mail",
+      "object_id": "demo-001",
+      "locator": "synthetic://demo-001/body",
+      "retrieved_at": "2026-10-13T17:00:00Z"
+    }
+  ],
+  "uncertainties": [
+    "Контакт и срок не указаны."
+  ],
+  "actions": [],
+  "metrics": {
+    "messages_processed": 1,
+    "candidates_found": 1
+  }
+}
