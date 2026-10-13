@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "created": "2026-10-13",
   "language": "ru",
-  "implementation_status": "design_only",
+  "implementation_status": "first_version_in_progress",
   "evidence_notice": "Инструменты извлечены из презентации. Механики и критерии являются предложением для FERDINAND. Исходный код оригинала отсутствует.",
   "evidence_levels": {
     "explicit": "Функция прямо описана.",
@@ -222,7 +222,7 @@
       "system": "rockefeller",
       "kind": "business",
       "evidence_level": "explicit",
-      "status": "planned",
+      "status": "in_progress",
       "source_refs": [
         {
           "source_id": "presentation",
@@ -247,7 +247,13 @@
       "optional_dependencies": [
         "CORE-05"
       ],
-      "active_accounting_scope": "personal_only"
+      "active_accounting_scope": "personal_only",
+      "implementation": {
+        "code": "phil/",
+        "done": "Импорт PDF «Справка о движении средств», реестр SQLite с защитой от повторов, типы операций по тексту, сводка за период",
+        "verified": "Синтетические тесты (tests/test_phil.py); настоящий файл за год: суммы операций совпали с итогами справки до копейки",
+        "missing": "Ежедневное получение, уточнение смысла переводов, категории, остатки счёта"
+      }
     },
     {
       "id": "FIN-02",
@@ -1332,11 +1338,12 @@
   "active_focus": {
     "system_id": "rockefeller",
     "display_name": "Фил",
-    "stage": "mechanics_design",
+    "stage": "first_version",
     "accounting_scope": "personal_only",
     "first_tool_proposal": "FIN-01",
     "bank_candidate": "tbank",
     "ingestion_proposal": "user_provided_statement",
-    "bank_access_status": "not_connected"
+    "bank_access_status": "not_connected",
+    "statement_format": "tbank_pdf_funds_movement"
   }
 }
