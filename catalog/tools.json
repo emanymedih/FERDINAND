@@ -31,7 +31,8 @@
       ],
       "scope": "Выписки, расходы, доходы проектов, кредитные обязательства и сценарии.",
       "original_name": "Рокфеллер",
-      "selection_status": "selected_first"
+      "selection_status": "selected_first",
+      "active_scope": "Только личные финансы пользователя: операции, личные доходы, обязательства и сценарии."
     },
     {
       "id": "kzg",
@@ -245,7 +246,8 @@
       "unknowns": "Конкретные интеграции и исходный код автора отсутствуют.",
       "optional_dependencies": [
         "CORE-05"
-      ]
+      ],
+      "active_accounting_scope": "personal_only"
     },
     {
       "id": "FIN-02",
@@ -273,7 +275,9 @@
         "FIN-01"
       ],
       "suggested_priority": "later",
-      "unknowns": "Конкретные интеграции и исходный код автора отсутствуют."
+      "unknowns": "Конкретные интеграции и исходный код автора отсутствуют.",
+      "active_accounting_scope": "personal_only",
+      "active_variant": "Учёт источников личных доходов"
     },
     {
       "id": "FIN-03",
@@ -302,7 +306,8 @@
         "FIN-02"
       ],
       "suggested_priority": "later",
-      "unknowns": "Конкретные интеграции и исходный код автора отсутствуют."
+      "unknowns": "Конкретные интеграции и исходный код автора отсутствуют.",
+      "active_accounting_scope": "personal_only"
     },
     {
       "id": "FIN-04",
@@ -332,7 +337,8 @@
         "FIN-03"
       ],
       "suggested_priority": "later",
-      "unknowns": "Конкретные интеграции и исходный код автора отсутствуют."
+      "unknowns": "Конкретные интеграции и исходный код автора отсутствуют.",
+      "active_accounting_scope": "personal_only"
     },
     {
       "id": "BIZ-01",
@@ -1327,7 +1333,10 @@
     "system_id": "rockefeller",
     "display_name": "Фил",
     "stage": "mechanics_design",
-    "accounting_scope": "to_be_selected",
-    "first_tool_proposal": "FIN-01"
+    "accounting_scope": "personal_only",
+    "first_tool_proposal": "FIN-01",
+    "bank_candidate": "tbank",
+    "ingestion_proposal": "user_provided_statement",
+    "bank_access_status": "not_connected"
   }
 }
