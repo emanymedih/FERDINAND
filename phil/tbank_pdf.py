@@ -52,6 +52,9 @@ class ParsedOperation:
     card_currency: str
     description: str
     card_last4: str | None
+    category: str | None = None  # категория банка, если она есть в источнике
+    balance_after_minor: int | None = None  # остаток после операции, если он есть
+    kind: object | None = None  # phil.kinds.Kind, если тип определил адаптер
 
     @property
     def operated_at(self) -> str:
@@ -77,10 +80,14 @@ class ParsedStatement:
     total_out_minor: int | None
     operations: list[ParsedOperation] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    source: str = "tbank_pdf_funds_movement"
+    bank: str = "Т-Банк"
+    opening_minor: int | None = None
+    closing_minor: int | None = None
 
     def check_totals(self) -> list[str]:
-        """Сверяет суммы операций с итогами справки. Пустой список — сошлось."""
-        problems = []
+        """Сверяет операции с итогами и остатками документа. Пустой список — сошлось."""
+        problems = self._check_balances()
         got_in = sum(o.amount_minor for o in self.operations if o.amount_minor > 0)
         got_out = -sum(o.amount_minor for o in self.operations if o.amount_minor < 0)
         if self.total_in_minor is None or self.total_out_minor is None:
@@ -94,6 +101,30 @@ class ParsedStatement:
             problems.append(
                 f"Расходы: по операциям {fmt_minor(got_out)}, в справке {fmt_minor(self.total_out_minor)}"
             )
+        return problems
+
+    def _check_balances(self) -> list[str]:
+        """Остатки: начальный + операции = конечный; остаток после каждой операции.
+
+        Операции идут от новых к старым, как в выписках банков."""
+        problems: list[str] = []
+        if self.opening_minor is None or self.closing_minor is None:
+            return problems
+        total = sum(o.amount_minor for o in self.operations)
+        if self.opening_minor + total != self.closing_minor:
+            problems.append(
+                f"Остатки: {fmt_minor(self.opening_minor)} + операции {fmt_minor(total)} "
+                f"≠ {fmt_minor(self.closing_minor)}"
+            )
+        balance = self.opening_minor
+        for op in reversed(self.operations):
+            balance += op.amount_minor
+            if op.balance_after_minor is not None and op.balance_after_minor != balance:
+                problems.append(
+                    f"Стр. {op.page}, операция {op.operated_at} {fmt_minor(op.amount_minor)}: "
+                    f"остаток в выписке {fmt_minor(op.balance_after_minor)}, расчётный {fmt_minor(balance)}"
+                )
+                break
         return problems
 
 

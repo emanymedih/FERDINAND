@@ -59,6 +59,16 @@ CREATE TABLE IF NOT EXISTS operations (
 CREATE INDEX IF NOT EXISTS operations_operated_at ON operations(account, operated_at);
 """
 
+# Колонки, добавленные после первой версии реестра: (таблица, колонка, тип).
+MIGRATIONS = [
+    ("imports", "bank", "TEXT"),
+    ("imports", "holder", "TEXT"),
+    ("imports", "opening_minor", "INTEGER"),
+    ("imports", "closing_minor", "INTEGER"),
+    ("operations", "category", "TEXT"),
+    ("operations", "balance_after_minor", "INTEGER"),
+]
+
 
 class ImportRejected(Exception):
     """Импорт не выполнен; в реестре ничего не изменилось."""
@@ -79,6 +89,11 @@ def connect(path: str | Path) -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     conn.executescript(SCHEMA)
+    for table, column, ctype in MIGRATIONS:
+        existing = {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
+        if column not in existing:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ctype}")
+    conn.commit()
     return conn
 
 
@@ -101,13 +116,12 @@ def fingerprints(account: str, ops: list[ParsedOperation]) -> list[str]:
     return result
 
 
-def import_statement(conn: sqlite3.Connection, stmt: ParsedStatement, file_name: str,
-                     source: str = "tbank_pdf_funds_movement") -> ImportResult:
+def import_statement(conn: sqlite3.Connection, stmt: ParsedStatement, file_name: str) -> ImportResult:
     if not stmt.account:
         raise ImportRejected("В справке не найден номер счёта")
     problems = stmt.check_totals()
     if problems:
-        raise ImportRejected("Суммы операций не сходятся с итогами справки: " + "; ".join(problems))
+        raise ImportRejected("Операции не сходятся с итогами или остатками документа: " + "; ".join(problems))
     if conn.execute("SELECT 1 FROM imports WHERE file_sha256 = ?", (stmt.file_sha256,)).fetchone():
         raise ImportRejected("Этот файл уже загружен")
 
@@ -115,24 +129,28 @@ def import_statement(conn: sqlite3.Connection, stmt: ParsedStatement, file_name:
     with conn:  # одна транзакция: при сбое не остаётся частичного импорта
         cur = conn.execute(
             """INSERT INTO imports (file_sha256, file_name, imported_at, source, issue_number, account,
-                   period_from, period_to, total_in_minor, total_out_minor, ops_in_file, ops_new, ops_known)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0)""",
+                   period_from, period_to, total_in_minor, total_out_minor, ops_in_file, ops_new, ops_known,
+                   bank, holder, opening_minor, closing_minor)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?, ?)""",
             (stmt.file_sha256, file_name, datetime.now(timezone.utc).isoformat(timespec="seconds"),
-             source, stmt.issue_number, stmt.account, stmt.period_from, stmt.period_to,
-             stmt.total_in_minor, stmt.total_out_minor, len(stmt.operations)),
+             stmt.source, stmt.issue_number, stmt.account, stmt.period_from, stmt.period_to,
+             stmt.total_in_minor, stmt.total_out_minor, len(stmt.operations),
+             stmt.bank, stmt.holder, stmt.opening_minor, stmt.closing_minor),
         )
         import_id = cur.lastrowid
         new = 0
         for op, fp in zip(stmt.operations, fps):
-            k = classify(op.description)
+            k = op.kind or classify(op.description)
             cur = conn.execute(
                 """INSERT OR IGNORE INTO operations (account, fingerprint, status, operated_at, debited_at,
                        amount_minor, currency, card_amount_minor, card_currency, description, card_last4,
-                       kind, counterparty, counterparty_ref, first_import_id, source_page, source_ordinal)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                       kind, counterparty, counterparty_ref, first_import_id, source_page, source_ordinal,
+                       category, balance_after_minor)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (stmt.account, fp, "posted" if op.debited_at else "pending", op.operated_at, op.debited_at,
                  op.amount_minor, op.currency, op.card_amount_minor, op.card_currency, op.description,
-                 op.card_last4, k.kind, k.counterparty, k.counterparty_ref, import_id, op.page, op.ordinal),
+                 op.card_last4, k.kind, k.counterparty, k.counterparty_ref, import_id, op.page, op.ordinal,
+                 op.category, op.balance_after_minor),
             )
             new += cur.rowcount
             if cur.rowcount == 0 and op.debited_at:

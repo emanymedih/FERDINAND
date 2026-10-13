@@ -162,6 +162,7 @@ class KindTest(unittest.TestCase):
 class RegistryTest(unittest.TestCase):
     def setUp(self):
         self.conn = connect(":memory:")
+        self.addCleanup(self.conn.close)
 
     def count(self):
         return self.conn.execute("SELECT COUNT(*) FROM operations").fetchone()[0]
@@ -194,7 +195,7 @@ class RegistryTest(unittest.TestCase):
     def test_summary_numbers(self):
         import_statement(self.conn, parse(), "jan.pdf")
         text = build_summary(self.conn)
-        self.assertIn("| **Всего по счёту** | 50 000,00 ₽ | 17 600,00 ₽ | 5 |", text)
+        self.assertIn("| **Всего по счетам** | 50 000,00 ₽ | 17 600,00 ₽ | 5 |", text)
         self.assertIn("| Внешние: доходы и расходы | 0,00 ₽ | 2 600,00 ₽ | 3 |", text)
         self.assertIn("| Не уточнено | 50 000,00 ₽ | 15 000,00 ₽ | 2 |", text)
         self.assertIn("| SHOP Moscow RUS | 2 501,00 ₽ | 2 |", text)
@@ -211,6 +212,7 @@ class LabelTest(unittest.TestCase):
 
     def setUp(self):
         self.conn = connect(":memory:")
+        self.addCleanup(self.conn.close)
         import_statement(self.conn, parse(self.OPS, total_in="10 000,00 ₽", total_out="38 000,00 ₽"), "jan.pdf")
 
     def test_unlabeled_transfers_are_unclear(self):

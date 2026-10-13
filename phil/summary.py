@@ -11,6 +11,7 @@ from collections import defaultdict
 
 from .kinds import KIND_TITLES
 from .labels import flow_of, label_map
+from .transfers import linked_ids
 from .tbank_pdf import fmt_minor
 
 
@@ -34,13 +35,16 @@ def build_summary(conn: sqlite3.Connection, date_from: str | None = None, date_t
         args.append(date_to)
     rows = conn.execute(f"SELECT * FROM operations WHERE {' AND '.join(where)}", args).fetchall()
     other_ccy = conn.execute("SELECT COUNT(*) FROM operations WHERE currency <> 'RUB'").fetchone()[0]
-    imports = conn.execute(
-        "SELECT MIN(period_from), MAX(period_to), COUNT(*) FROM imports"
-    ).fetchone()
+    accounts = conn.execute(
+        """SELECT account, MAX(bank) AS bank, MIN(period_from) AS p_from, MAX(period_to) AS p_to, COUNT(*) AS n
+           FROM imports GROUP BY account ORDER BY MAX(bank)"""
+    ).fetchall()
     if not rows:
         return "В реестре нет операций за выбранный период."
 
     labels = label_map(conn)
+    linked = linked_ids(conn)
+    per_account: dict[str, list[int]] = defaultdict(lambda: [0, 0, 0])
     ext_in: dict[str, list[int]] = defaultdict(lambda: [0, 0])
     ext_out: dict[str, list[int]] = defaultdict(lambda: [0, 0])
     unclear_in: dict[str, list[int]] = defaultdict(lambda: [0, 0])
@@ -49,7 +53,10 @@ def build_summary(conn: sqlite3.Connection, date_from: str | None = None, date_t
     merchants: dict[str, list[int]] = defaultdict(lambda: [0, 0])
 
     for r in rows:
-        flow, amount = flow_of(r, labels), r["amount_minor"]
+        flow, amount = flow_of(r, labels, linked), r["amount_minor"]
+        acc = per_account[r["account"]]
+        acc[0 if amount > 0 else 1] += abs(amount)
+        acc[2] += 1
         if flow == "own":
             own["in" if amount > 0 else "out"] += abs(amount)
             own["n"] += 1
@@ -76,11 +83,24 @@ def build_summary(conn: sqlite3.Connection, date_from: str | None = None, date_t
     last = max(r["operated_at"] for r in rows)[:10]
 
     out = [
-        "# Фил: сводка по личному счёту",
+        "# Фил: сводка по личным счетам",
         "",
-        f"Период операций: {first} — {last}. Операций: {len(rows)}.",
-        f"Загружено выписок: {imports[2]}, покрытие {imports[0]} — {imports[1]}; "
-        f"данные актуальны на {imports[1]}.",
+        f"Запрошенный период: {date_from or 'с начала данных'} — {date_to or 'по конец данных'}. "
+        f"Операции в нём: {first} — {last}, всего {len(rows)}.",
+        "",
+        "| Счёт | Выписки покрывают | Пришло | Ушло | Операций | Покрытие периода |",
+        "| --- | --- | ---: | ---: | ---: | --- |",
+    ]
+    for a in accounts:
+        got = per_account.get(a["account"], [0, 0, 0])
+        gaps = []
+        if date_from and a["p_from"] and a["p_from"] > date_from:
+            gaps.append(f"нет данных до {a['p_from']}")
+        if date_to and a["p_to"] and a["p_to"] < date_to:
+            gaps.append(f"нет данных после {a['p_to']}")
+        out.append(f"| {a['bank']} …{a['account'][-4:]} | {a['p_from']} — {a['p_to']} | {fmt_minor(got[0])} | "
+                   f"{fmt_minor(got[1])} | {got[2]} | {'; '.join(gaps) or 'полное'} |")
+    out += [
         "",
         "| Поток | Пришло | Ушло | Операций |",
         "| --- | ---: | ---: | ---: |",
@@ -89,12 +109,12 @@ def build_summary(conn: sqlite3.Connection, date_from: str | None = None, date_t
         f"| Между своими счетами | {fmt_minor(own['in'])} | {fmt_minor(own['out'])} | {own['n']} |",
         f"| Не уточнено | {fmt_minor(t_un_in)} | {fmt_minor(t_un_out)} | "
         f"{count(unclear_in) + count(unclear_out)} |",
-        f"| **Всего по счёту** | {fmt_minor(t_ext_in + own['in'] + t_un_in)} | "
+        f"| **Всего по счетам** | {fmt_minor(t_ext_in + own['in'] + t_un_in)} | "
         f"{fmt_minor(t_ext_out + own['out'] + t_un_out)} | {len(rows)} |",
         "",
-        "Перемещения между своими счетами не считаются ни доходом, ни расходом. "
-        "Неуточнённые операции — переводы и пополнения, для которых ещё не отмечено, "
-        "свой это счёт или чужой (`python3 -m phil counterparties`).",
+        "Перемещения между своими счетами (в том числе найденные пары переводов между банками) "
+        "не считаются ни доходом, ни расходом. Неуточнённые операции — переводы и пополнения, "
+        "для которых ещё не отмечено, свой это счёт или чужой (`python3 -m phil counterparties`).",
     ]
     out += _kind_table("Внешние поступления", ext_in, 1)
     out += _kind_table("Внешние списания", ext_out, -1)

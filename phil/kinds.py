@@ -52,6 +52,11 @@ KIND_TITLES = {
     "bank_fee": "Платы банку",
     "cashback": "Кэшбэк",
     "refund": "Возвраты покупок",
+    "salary": "Зарплата",
+    "transfer_out_sbp": "Переводы по СБП",
+    "transfer_in_sbp": "Входящие переводы по СБП",
+    "transfer_in_other": "Входящие переводы",
+    "transfer_out_other": "Исходящие переводы",
     "unknown": "Не распознано",
 }
 
@@ -59,6 +64,7 @@ KIND_TITLES = {
 NEEDS_MEANING = {
     "transfer_out_internal", "transfer_in_internal", "transfer_out_phone",
     "transfer_out_bank", "transfer_out_card", "topup", "cash_in", "cash_out",
+    "transfer_out_sbp", "transfer_in_sbp", "transfer_in_other", "transfer_out_other",
 }
 
 

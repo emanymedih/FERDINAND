@@ -83,12 +83,13 @@ def label_map(conn: sqlite3.Connection) -> dict[tuple[str, str], str]:
     return {(a, r): l for a, r, l in conn.execute("SELECT account, ref, label FROM counterparty_labels")}
 
 
-def flow_of(row: sqlite3.Row, labels: dict[tuple[str, str], str]) -> str:
+def flow_of(row: sqlite3.Row, labels: dict[tuple[str, str], str],
+            linked: set[int] | frozenset = frozenset()) -> str:
     """'own' — перемещение между своими счетами, 'external' — подтверждённо внешнее,
-    'unclear' — смысл не установлен."""
+    'unclear' — смысл не установлен. `linked` — операции из сопоставленных пар переводов."""
     from .kinds import NEEDS_MEANING
 
-    if row["kind"] in INHERENTLY_OWN:
+    if row["kind"] in INHERENTLY_OWN or row["id"] in linked:
         return "own"
     ref = row["counterparty_ref"]
     if ref:

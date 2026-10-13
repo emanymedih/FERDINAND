@@ -1,6 +1,7 @@
 """Командная строка Фила.
 
-    python -m phil import data/выписка.pdf
+    python -m phil import data/выписка.pdf [data/сбер.pdf ...]   # Т-Банк или Сбер, определяется сам
+    python -m phil transfers                                     # найденные переводы между своими счетами
     python -m phil summary [--from 2026-01-01] [--to 2026-01-31] [--out data/сводка.md]
     python -m phil counterparties [--all] [--top 30]
     python -m phil label 4373 own [--note "накопительный счёт"]
@@ -18,9 +19,24 @@ from .labels import LABELS, counterparties, set_label
 from .registry import ImportRejected, connect, import_statement
 from .summary import build_summary
 from .kinds import KIND_TITLES
-from .tbank_pdf import StatementParseError, fmt_minor, parse_pdf
+from . import sber_pdf, tbank_pdf
+from .tbank_pdf import StatementParseError, fmt_minor
+from .transfers import list_links, match_transfers
 
 DEFAULT_DB = Path("data/phil.sqlite")
+
+
+def parse_any(path: Path):
+    """Определяет банк по первой странице и вызывает нужный адаптер."""
+    import pdfplumber
+
+    with pdfplumber.open(path) as pdf:
+        head = pdf.pages[0].extract_text() or "" if pdf.pages else ""
+    if "Выписка по платёжному счёту" in head or "Выписка по платежному счету" in head:
+        return sber_pdf.parse_pdf(path)
+    if "Справка о движении средств" in head:
+        return tbank_pdf.parse_pdf(path)
+    raise StatementParseError("Формат не распознан: поддерживаются справка Т-Банка и выписка Сбера")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -28,7 +44,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--db", type=Path, default=DEFAULT_DB, help="файл реестра")
     sub = p.add_subparsers(dest="cmd", required=True)
 
-    imp = sub.add_parser("import", help="загрузить справку о движении средств Т-Банка (PDF)")
+    imp = sub.add_parser("import", help="загрузить выписку: справку Т-Банка или выписку Сбера (PDF)")
     imp.add_argument("files", nargs="+", type=Path)
 
     summ = sub.add_parser("summary", help="сводка за период")
@@ -46,6 +62,8 @@ def main(argv: list[str] | None = None) -> int:
     lab.add_argument("label", choices=sorted(LABELS))
     lab.add_argument("--note")
 
+    sub.add_parser("transfers", help="переводы между своими счетами, найденные по сумме и времени")
+
     args = p.parse_args(argv)
     conn = connect(args.db)
 
@@ -53,18 +71,36 @@ def main(argv: list[str] | None = None) -> int:
         failed = 0
         for f in args.files:
             try:
-                stmt = parse_pdf(f)
+                stmt = parse_any(f)
                 res = import_statement(conn, stmt, f.name)
             except (StatementParseError, ImportRejected) as e:
                 print(f"{f.name}: не загружено — {e}", file=sys.stderr)
                 failed += 1
                 continue
-            print(f"{f.name}: период {stmt.period_from} — {stmt.period_to}, операций {res.ops_in_file}, "
-                  f"новых {res.ops_new}, уже были {res.ops_known}. Итоги справки сошлись: "
-                  f"пополнения {fmt_minor(stmt.total_in_minor)}, расходы {fmt_minor(stmt.total_out_minor)}.")
+            checks = [f"поступления {fmt_minor(stmt.total_in_minor)}", f"списания {fmt_minor(stmt.total_out_minor)}"]
+            if stmt.opening_minor is not None:
+                checks.append(f"остатки {fmt_minor(stmt.opening_minor)} → {fmt_minor(stmt.closing_minor)}")
+            print(f"{f.name} ({stmt.bank} …{stmt.account[-4:]}): период {stmt.period_from} — {stmt.period_to}, "
+                  f"операций {res.ops_in_file}, новых {res.ops_new}, уже были {res.ops_known}. "
+                  f"Сошлось: {', '.join(checks)}.")
             for w in stmt.warnings:
                 print(f"  предупреждение: {w}", file=sys.stderr)
+        new, ambiguous = match_transfers(conn)
+        if new:
+            print(f"Найдено переводов между своими счетами: {new} (python3 -m phil transfers)")
+        for a in ambiguous:
+            print(f"  неоднозначно, не связано: {a}", file=sys.stderr)
         return 1 if failed else 0
+
+    if args.cmd == "transfers":
+        links = list_links(conn)
+        print("| Списано | Откуда | Поступило | Куда | Сумма | Разница, мин |")
+        print("| --- | --- | --- | --- | ---: | ---: |")
+        for l in links:
+            print(f"| {l['out_at']} | …{l['out_account'][-4:]} {l['out_desc']} | {l['in_at']} | "
+                  f"…{l['in_account'][-4:]} {l['in_desc']} | {fmt_minor(l['amount'])} | {l['delta_minutes']} |")
+        print(f"\nПар: {len(links)}.")
+        return 0
 
     if args.cmd == "counterparties":
         items = [c for c in counterparties(conn) if args.all or not c["label"]]
