@@ -46,7 +46,7 @@
 python3 -m phil import data/<справка>.pdf
 python3 -m phil summary --from 2026-09-01 --to 2026-09-30
 python3 -m phil counterparties          # получатели переводов без отметки, по сумме
-python3 -m phil label 4373 own          # свой счёт владельца выписки
+python3 -m phil label 1234 own          # свой счёт владельца выписки
 python3 -m phil label +7900... external --note "аренда"
 python3 -m phil label-kind cash_in own --note "свои отложенные деньги"   # для операций без реквизита
 ```

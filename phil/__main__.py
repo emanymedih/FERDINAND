@@ -4,7 +4,7 @@
     python -m phil transfers                                     # найденные переводы между своими счетами
     python -m phil summary [--from 2026-01-01] [--to 2026-01-31] [--out data/сводка.md]
     python -m phil counterparties [--all] [--top 30]
-    python -m phil label 4373 own [--note "накопительный счёт"]
+    python -m phil label 1234 own [--note "накопительный счёт"]
     python -m phil label-kind cash_in own [--note "свои отложенные деньги"]
 
 Реестр по умолчанию лежит в data/phil.sqlite; папка data/ исключена из Git.
